@@ -185,14 +185,18 @@ $$
 原子步骤1，2的交替进行，可以完成一项基本重构或者复杂重构. 在这里1和2可以称之为原子步骤，除了因为大多数的重构手法可以拆解成这两个原子步骤.更是因为每个原子步骤也是一项代码的等价变换(只是层次更低)，严苛条件下我们可以按照原子步骤的粒度进行代码的提交或者回滚.然而我们之所以不把原子步骤叫做手法，是因为原子步骤的单独完成往往不能独立达成一项重构目标. 灵活掌握了原子步骤的应用，我们除了不用死记硬背每种重构手法背后的繁琐步骤，更可以使自己的重构过程更安全和小步，做到更小粒度的提交和回滚，快速恢复代码到可用状态.
 
 以下是两个应用原子步骤完成基本重构手法的例子:
+
 1. 重命名变量(Rename Variable)
+
     ~~~cpp
     unsigned int start = Date::getTime();
     // load program ...
     unsigned int offset = Date::getTime() - start;
     cout << "Load time was: " << offset/1000 << "seconds" << endl;
     ~~~
+    
     在上面的示例代码中，变量`offset`的含义太过宽泛，我们将其重命名为`elapsed`，第一步我们执行原子步骤setup，创建一个新的变量`eclapsed`，并且将其初始化为`offset`.在这里为了更好的体现设计意图，我们将其定义为const.
+    
     ~~~cpp
     unsigned int start = Date::getTime();
     // load program ...
@@ -200,8 +204,10 @@ $$
     const unsigned int elapsed = offset;
     cout << "Load time was: " << offset/1000 << "seconds" << endl;
     ~~~
+    
     经过这一步，我们完成了原子步骤1. 在这个过程中，我们只是增加了新的代码元素，并没有修改原有代码.新增加的代码元素体现了更好的设计意图. 最后我们编译现有代码，保证这一过程的安全性.
     接下来我们进行原子步骤substitute，首先找到待替换代码元素的所有引用点.对于我们的例子就是所有使用变量offset的地方.对于每个引用点逐一进行替换和测试.
+    
     ~~~cpp
     unsigned int start = Date::getTime();
     // load program ...
@@ -209,18 +215,22 @@ $$
     const unsigned int elapsed = offset;
     cout << "Load time was: " << elapsed/1000 << "seconds" << endl;
     ~~~
+    
     最后别忘了变量定义之处的替换:
+    
     ~~~cpp
     unsigned int start = Date::getTime();
     // load program ...
     const unsigned int elapsed = Date::getTime() - start;
     cout << "Load time was: " << elapsed/1000 << "seconds" << endl;
     ~~~
+    
     每一次替换之后都需要运行测试，保证对源代码修改的安全性.
     
     在上述例子中，对于变量start和elapsed可以有更好的命名，这两个变量最好能够体现其代表时间的单位，例如可以叫做 startMs以及elapsedMs，大家可以自行练习替换. 另外程序中存在魔术数字1000，可以自行尝试用原子步骤进行`extract variable`重构手法，完成用变量对1000的替换.
     
 2. 提炼函数 (Extract Method)
+
     ~~~cpp
     void printAmount(const Items& items)
     {
@@ -239,6 +249,7 @@ $$
     为了把统计和打印职责分开，我们提炼一个函数`calcAmount`用来专门对一个给定的Items集合求总和.为了完成Extract Method重构手法，我们首先使用原子步骤setup. 
     
     首先建立`calcAmount`函数的原型，
+    
     ~~~cpp
     int calcAmount(const Items& items)
     {
@@ -257,7 +268,9 @@ $$
         cout << "The amount of items is " << sum << endl;
     }
     ~~~
+    
     接下来完成`calcAmount`函数的实现.这一步需要将源函数中相关部分copy到`calcAmount`中并稍加修改.切记由于原子步骤1中不能修改源代码，所以这里千万不要用剪切，否则一旦重构出错，是很难快速将代码回滚到正确的状态的，这点新手尤其需要注意! 
+    
     ~~~cpp
     int calcAmount(const Items& items)
     {
@@ -286,6 +299,7 @@ $$
     
     到目前为止，原子步骤1就已經OK了，我们运行编译，保证新增加的代码元素是可用的. 
     接下来我们进行原子步骤substitute.将新函数`calcAmount`替换到每一个对Items计算总量的地方.对于我们的例子，只有一个地方就是`printAmount`函数(相信对于真实代码，这类对Items求总量的计算会到处都是，写法各异).
+    
     ~~~cpp
     int calcAmount(const Items& items)
     {
@@ -304,11 +318,13 @@ $$
         cout << "The amount of items is " << calcAmount(items) << endl;
     }
     ~~~
+    
     替换之后运行测试.到目前为止我们的Extract Method已经完成了.
     
     如果更进一步，我们发现可以运用基本重构手法Move Method将`calcAmount`函数移入到Items类中，然后使用Rename Method手法将其重命名为`getAmount`会更好. 对于Move Method和Rename Method大家可以发现，它们都是由我们总结的原子步骤组成. 例如Move Mehod，我们首先应用原子步骤setup，在Items类中创建public成员方法`calcAmount`，然后将函数的具体实现copy过去修改好，保证编译OK. 接下来应用原子步骤substitute，用新创建的Items成员函数替换老的CalcAmount，测试OK后，我们就完成了Move Method重构. 
     
     重构的最终效果如下，大家可自行练习.
+    
     ~~~cpp
     struct Items
     {
@@ -321,12 +337,14 @@ $$
         cout << "The amount of items is " << items.getAmount() << endl;
     }
     ~~~
+    
     在这里我们没有将`printAmount`也移入到Items中，是因为`getAmount`作为Items的接口是稳定的.但是如何打印往往是表示层关注的，各种场景下打印格式各异，所以没有将其移入Items中.
     
-通过上面的示例，我们演示了如何用原子步骤组合出基本的重构手法. 实际上，对于所有的rename和普通的extract重构，一般的`C++ IDE`都提供了直接的自动化重构快捷键供我们使用，平时开发直接使用重构快捷键即高效又安全.但是这并不影响我们掌握原子步骤的使用.由于`C++`语言的复杂性，大多数重构手法都是没有自动化重构快捷键支持的，即便有重构快捷键支持，一旦上下文稍微复杂一点(例如对有很多临时变量的函数执行Extract Method)，自动化重构的结果也往往不能让人满意. 这里不仅对C++语言，对于一些动态类型语言(例如ruby)，自动化重构更是匮乏.所以我们要掌握重构手法背后的思想，熟练掌握原子步骤，学会安全高效地手动重构.
+通过上面的示例，我们演示了如何用原子步骤组合出基本的重构手法. 实际上，对于所有的rename和普通的extract重构，一般的`C++ IDE`都提供了直接的自动化重构快捷键供我们使用，平时开发直接使用重构快捷键即高效又安全.但是这并不影响我们掌握原子步骤的使用.由于`C++`语言的复杂性，大多数重构手法都是没有自动化重构快捷键支持的，即便有重构快捷键支持，一旦上下文稍微复杂一点(例如对有很多临时变量的函数执行Extract Method)，自动化重构的结果也往往不能让人满意.
+
+这里不仅对C++语言，对于一些动态类型语言(例如ruby)，自动化重构更是匮乏.所以我们要掌握重构手法背后的思想，熟练掌握原子步骤，学会安全高效地手动重构.
     
-这里总结的原子步骤是非常适普的! 不仅我们列举出的基本重构手法都是由原子步骤组成.对于许多复杂的重构手法，除了会直接使用基本重构手法，甚至也会直接使用原子步骤. 
-例如对于Martin描述的手法"Replace Type Code with Class(以类取代类型码)"，里面基本是在反复使用原子步骤，我们摘录原书中的操作描述:
+这里总结的原子步骤是非常适普的! 不仅我们列举出的基本重构手法都是由原子步骤组成.对于许多复杂的重构手法，除了会直接使用基本重构手法，甚至也会直接使用原子步骤. 例如对于Martin描述的手法"Replace Type Code with Class(以类取代类型码)"，里面基本是在反复使用原子步骤，我们摘录原书中的操作描述:
 
 > 1. 为类型码建立一个类
 > 2. 修改源类的实现，让它使用新建的类
@@ -359,6 +377,7 @@ Encapsulate field一般在修改类的某一成员字段的实现方式的重构
 在某些场合下使用锚点还有更重要的意义，一些重构手法必须借助锚点才能完成，尤其是对一些需要子类化的重构! 例如对于 `Replace Constructor with Factory Method(以工厂函数取代构造函数)`，在该重构手法里面，工厂函数就是锚点，它将类的创建汇聚到工厂函数里面，对客户代码隐藏了类的构造细节，后面如果进行某些子类化的重构就非常容易实施.
 
 下面我们以一个例子作为对原子步骤和锚点的总结。
+
 ~~~cpp
 // Shoes.h
 enum Type
@@ -378,6 +397,7 @@ private:
     double price;
 };
 ~~~
+
 ~~~cpp
 // Shoes.cpp
 #include "Shoes.h"
@@ -425,6 +445,7 @@ double Shoes::getCharge(int quantity) const
 
 以下是具体的重构过程，我们着重展示如何使用原子步骤以及锚点。
 1. 由于我们要以子类取代类型码`type`，所以首先使用Encapsulate field对`type`创建引用锚点，方便后面对`type`的替换。
+
 	~~~cpp
 	Type Shoes::getType() const
 	{
@@ -461,8 +482,11 @@ double Shoes::getCharge(int quantity) const
 		return result;
 	}
 	~~~
+	
 	上面我们将`getCharge`中对`type`的直接使用替换为调用新创建的私有成员方法`getType()`。到最后`Shoes`内只有构造函数中仍然直接使用`type`，接下来再处理构造函数。
+	
 2. 为了屏蔽`Shoes`类型被子类化后对客户代码的影响，我们对`Shoes`创建工厂函数作为构造函数的引用锚点，用来对客户屏蔽不同种类`Shoes`的具体构造。首先执行原子步骤setup，创建出工厂函数。
+
 	~~~cpp
 	struct Shoes
 	{
@@ -479,13 +503,16 @@ double Shoes::getCharge(int quantity) const
 		double price;
 	};
 	~~~
+	
 	~~~cpp
 	Shoes* Shoes::create(Type type, double price)
 	{
 		return new Shoes(type, price);
 	}
 	~~~
+	
 	编译通过后，接下来执行原子步骤substitute。将原来客户代码直接调用`Shoes`构造函数的地方替换为调用工厂函数。替换完成后将`Shoes`的构造函数修改为`protected`(子类要用)。执行测试！
+	
 	~~~cpp
 	struct Shoes
 	{
@@ -504,17 +531,21 @@ double Shoes::getCharge(int quantity) const
 		double price;
 	};
 	~~~
+	
 	~~~cpp
 	// client code
 	
 	// Shoes* shoes = new Shoes(REGULAR, 100.0);
     Shoes* shoes = Shoes::create(REGULAR, 100.0);
 	~~~
+	
 	为了简化，这里假设客户代码需要对创建出来的`Shoes`对象进行显示内存管理。
 	
 	至此内外部锚点都已经创建OK。内部锚点`getType`在类内屏蔽对`type`的直接使用，方便后续以子类对`type`进行替换。外部锚点`create`向客户隐藏`Shoes`的具体构造，方便以子类的构造替换具体类型`Shoes`的构造。
+	
 3. 接下来，我们逐一创建`Shoes`的子类，用于对`Shoes`中类型码的替换。
 首先将`Shoes`内的`getType`函数修改为虚方法。然后执行原子步骤setup，创建类`RegularShoes`继承自`Shoes`，它覆写了`getType`方法，返回对应的类型码。
+
     ~~~cpp
 	struct RegularShoes : Shoes
 	{
@@ -524,6 +555,7 @@ double Shoes::getCharge(int quantity) const
 		Type getType() const override;
 	};
 	~~~
+	
 	~~~cpp
 	RegularShoes::RegularShoes(double price)
 				: Shoes(REGULAR, price)
@@ -535,7 +567,9 @@ double Shoes::getCharge(int quantity) const
 		return REGULAR;
 	}
 	~~~
+	
 	下面执行原子步骤substitute，用`RegularShoes`替换`Shoes`的构造函数中对于`REGULAR`类型的构造。
+	
 	~~~cpp
 	Shoes* Shoes::create(Type type, double price)
 	{
@@ -543,7 +577,9 @@ double Shoes::getCharge(int quantity) const
 		return new Shoes(type, price);
 	}
 	~~~
+	
 	同样的方式创建`NewStyleShoes`和`LimitedEditionShoes`，并替换进工厂函数中。
+	
 	~~~cpp
 	NewStyleShoes::NewStyleShoes(double price)
         : Shoes(NEW_STYLE, price)
@@ -555,6 +591,7 @@ double Shoes::getCharge(int quantity) const
 		return NEW_STYLE;
 	}
 	~~~
+	
 	~~~cpp
 	LimitedEditionShoes::LimitedEditionShoes(double price)
         : Shoes(LIMITED_EDITION, price)
@@ -566,6 +603,7 @@ double Shoes::getCharge(int quantity) const
 		return LIMITED_EDITION;
 	}
 	~~~
+	
 	~~~cpp
 	Shoes* Shoes::create(Type type, double price)
 	{
@@ -582,9 +620,11 @@ double Shoes::getCharge(int quantity) const
 		return nullptr;
 	}
 	~~~
+	
     在`Shoes::create`方法中，类型都不匹配的情况下返回了`nullptr`，当然你也可以创建`Shoes`的一个`NullObject`在此返回。
 	
 	至此，`Shoes`中就不再需要类型码`type`了。为了安全的删除，我们执行原子步骤setup，先为`Shoes`添加一个无需`type`参数的构造函数`Shoes(double price)`，然后执行原子步骤substitute，将子类中调用的`Shoes(Type type, double price)`全部替换掉。在这里为了避免子类间构造函数的重复，我们使用了C++11的继承构造函数特性。编译测试通过后，我们可以安全地将`type`和`Shoes(Type type, double price)`一起删除，同时将`Shoes`中的`getType`修改为纯虚函数，删除其在cpp文件中的函数实现。
+	
 	~~~cpp
 	struct Shoes
 	{
@@ -601,6 +641,7 @@ double Shoes::getCharge(int quantity) const
 		double price;
 	};
 	~~~
+	
 	~~~cpp
 	struct RegularShoes : Shoes
 	{
@@ -610,8 +651,10 @@ double Shoes::getCharge(int quantity) const
 		Type getType() const override;
 	};
 	~~~
+	
 4. 重构到现在，我们已经成功地用子类替换掉了类型码。但是这不是我们的目的，我们最终希望能够把`getCharge`中的计算行为分解到对应子类中去。这就是`Replace Condition with Polymorphism(以多态取代条件表达式)`。下面我们以原子步骤的方式完成它。
 首先将`getCharge`声明为虚方法。然后使用原子步骤setup在子类中创建`getCharge`的覆写函数，将对应子类的计算部分copy过去。这里为了能够编译通过，需要将`Shoes`中的`price`成员变量修改为`protected`。
+
     ~~~cpp
     struct Shoes
 	{
@@ -629,6 +672,7 @@ double Shoes::getCharge(int quantity) const
 		double price;
 	};
     ~~~
+    
 	~~~cpp
 	struct RegularShoes : Shoes
 	{
@@ -639,13 +683,16 @@ double Shoes::getCharge(int quantity) const
 		Type getType() const override;
 	};
 	~~~
+	
 	~~~cpp
 	double RegularShoes::getCharge(int quantity) const
 	{
 		return price * quantity;
 	}
 	~~~
+	
 	然后执行原子步骤substitute，用子类的`getCharge`对父类中的实现进行替换。这里只用删除`Shoes::getCharge`中对应`REGULAR`的分支。执行测试。
+	
 	~~~cpp
 	double Shoes::getCharge(int quantity) const
 	{
@@ -673,7 +720,9 @@ double Shoes::getCharge(int quantity) const
 		return result;
 	}
 	~~~
+	
 	同样的方式，将`Shoes::getCharge`中其余部分分别挪入到另外两个子类中，完成对`Shoes::getCharge`的替换，最后删除`Shoes::getCharge`的实现部分，将其声明为纯虚函数。这时继承体系上的`getType`也不再需要了，一起删除。
+	
 	~~~cpp
 	struct Shoes
 	{
@@ -687,6 +736,7 @@ double Shoes::getCharge(int quantity) const
 		double price;
 	};
 	~~~
+	
 	~~~cpp
 	Shoes::Shoes(double price)
 			: price(price)
@@ -708,6 +758,7 @@ double Shoes::getCharge(int quantity) const
 		return nullptr;
 	}
 	~~~
+	
 	~~~cpp
 	struct RegularShoes : Shoes
 	{
@@ -722,6 +773,7 @@ double Shoes::getCharge(int quantity) const
 		return price * quantity;
 	}
 	~~~
+	
 	~~~cpp
 	struct NewStyleShoes : Shoes
 	{
@@ -743,6 +795,7 @@ double Shoes::getCharge(int quantity) const
 		return result;
 	}
 	~~~
+	
 	~~~cpp
 	struct LimitedEditionShoes : Shoes
 	{
@@ -794,6 +847,7 @@ double Shoes::getCharge(int quantity) const
 7. 将新的函数替换回原函数，保证测试通过.
 
 下面是一个例子:
+
 ~~~cpp
 bool calcPrice(Product* products，U32 num，double* totalPrice)
 {
@@ -827,8 +881,10 @@ bool calcPrice(Product* products，U32 num，double* totalPrice)
     return false;
 }
 ~~~
+
 上面是一段C风格的代码. 函数`calcPrice`用来计算所有product的总price. 其中入参为一个Product类型的数组，长度为num. 每个product的价格等于其单价乘以总量，然后再乘以一个折扣. 当单价乘以总量大于等于1000的时候，折扣为0.95，否则折扣为0.99. 出参totalPrice为最终计算出的所有product的价格之和. 计算成功函数返回true，否则返回false并且不改变totalPrice的值.
 Product是一个简单的结构体，定义如下
+
 ~~~cpp
 typedef unsigned int U32;
 
@@ -846,6 +902,7 @@ struct Product
 
 对于这个问题，我们采用上面总结出来的Extract Method的合理顺序来解决.
 1. 将每一个局部变量定义到最靠近其使用的地方，尽量做到定义即初始化;
+
     ~~~cpp
     bool calcPrice(Product* products，U32 num，double* totalPrice)
     {
@@ -876,9 +933,11 @@ struct Product
         return false;
     }
     ~~~
+    
     在上面的操作中，我们将变量`i`，`basePrice`和`dicountFactor`的定义位置都挪到了其第一次使用的地方.对于`i`和`basePrice`做到了定义即初始化.
 2. 对于查询变量有多次赋值的情况，将其拆分成多个查询变量.保证每个查询变量只被赋值一次.
    在这里我们辨识出`totalPrice`和`i`为累计变量，其它都是查询变量.对于查询变量`basePrice`存在多次赋值的情况，这里我们把它拆成两个变量(增加`actualPrice`)，保证每个变量只被赋值一次.对于所有查询变量尽量加上const加以标识.
+
     ~~~cpp
     bool calcPrice(const Product* products，const U32 num，double* totalPrice)
     {
@@ -909,8 +968,10 @@ struct Product
         return false;
     }
     ~~~
+    
 3. 利用"以查询替代临时变量"重构，消除所有查询变量.减少原函数中临时变量的数目.
    在这里先从依赖较小的`basePrice`开始.
+
     ~~~cpp
     double getBasePrice(const Product* product)
     {
@@ -943,8 +1004,10 @@ struct Product
 
         return false;
     }
-   	~~~
+   ~~~
+   	
 4. 下来搞定`discountFactor`
+
     ~~~cpp
     double getBasePrice(const Product* product)
     {
@@ -972,8 +1035,10 @@ struct Product
         return false;
     }
     ~~~
+    
 5. 下来消灭`actualPrice`:
-	~~~cpp
+
+    ~~~cpp
     double getBasePrice(const Product* product)
     {
         return product->price * product->quantity;
@@ -1004,10 +1069,12 @@ struct Product
         return false;
     }
     ~~~
+    
 6. 到目前为止，我们最初的目标已经达成了.如果你觉得`getBasePrice`调用过多担心造成性能问题，可以在`getDiscountFactor`和`getPrice`函数中使用inline function重构手法将其再内联回去.但是`getBasePrice`可以继续保留，假如该方法还存在其它客户的话.另外是否性能优化可以等到有性能数据支撑的时候再进行也不迟.
 
 7. 最后，可以使用重构手法对`calcPrice`做进一步的优化:
-	~~~cpp
+
+    ~~~cpp
     double getTotalPrice(const Product* products，const U32 num)
     {
         double result = 0;
@@ -1029,7 +1096,9 @@ struct Product
         return true;
     }
     ~~~
+    
     针对最后是否提取`getTotalPrice`函数可能会有争议. 个人认为将其提取出来是有好处的，因为大多数情况下只关注正常场景计算的函数是有用的.例如我们可以单独复用该函数完成对计算结果的打印:
+    
     ~~~cpp
     Product products[10];
     ...
@@ -1130,7 +1199,7 @@ Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. �
 关于编译构建的一些实践经验如下:
 - makefile中尽可能使用模式规则.自动搜索文件.不要显示使用源文件名，否则每次重命名文件后都得要修改makefile.
 - makefile中为预编译目标文件设置规则，不仅有利于解决一些宏展开的问题，更重要的可以快速解决一些头文件包含上的编译难题.
-- 
+
 	~~~makefile
 	# makefile example
 	...
@@ -1144,6 +1213,7 @@ Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. �
 	$(TARGET):$(OBJS)
 		@$(generate-cmd)
 	~~~
+	
 - makefile采用自底向上组织，保证每个源代码文件单独可编译，每个模块单独可编译. 最终产品版本的构建调用每个模块的makefile生成编译中间产物后进行链接. 不要采用自顶向下传递make参数的makefile工程管理模式，否则每次编译任何一个文件或者模块都要全编译所有代码.
 - 尽可能使用并行编译. 在Visual Studio下可以使用IncrediBuild分布式编译工具. 对于make使用`-j`选项，并且可以使用distcc来进行分布式编译.另外可以使用ccache来做缓存加速编译。
 - 将测试工程的编译构建和真实产品版本的构建分离，测试工程的编译构建可以采用更好的工具:例如cmake，rake等.
@@ -1151,6 +1221,7 @@ Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. �
 
 很多项目虽然有增量编译，但是都不够可靠，尤其是当有头文件删除的时候! 另外每次无论是否有依赖变化，makefile都要重新生成加载.d文件，效率也很低下. 所以大多数时候增量编译功能是关闭的!
 《GNU Make项目管理》一书中提供了很多大型工程中make组织的优秀实践，其中有一段对增量编译可靠高效的makefile片段，我将其提炼成了一段make函数，见下面，大家可以使用.
+
 ~~~makefile
 # make_depend.mak
 # this file implement the makefile function for dependencies rules
