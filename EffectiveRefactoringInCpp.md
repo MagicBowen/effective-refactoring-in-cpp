@@ -446,22 +446,22 @@ double Shoes::getCharge(int quantity) const
 以下是具体的重构过程，我们着重展示如何使用原子步骤以及锚点。
 1. 由于我们要以子类取代类型码`type`，所以首先使用Encapsulate field对`type`创建引用锚点，方便后面对`type`的替换。
 
-	~~~cpp
+    ~~~cpp
 	Type Shoes::getType() const
 	{
 		return type;
 	}
-
+	
 	double Shoes::getCharge(int quantity) const
 	{
 		double result = 0;
-
+	
 		switch(getType())
 		{
 			case REGULAR:
 				result += price * quantity;
 				break;
-
+	
 			case NEW_STYLE:
 				if (quantity > 1)
 				{
@@ -471,19 +471,19 @@ double Shoes::getCharge(int quantity) const
 				{
 					result += price;
 				}
-
+	
 				break;
-
+	
 			case LIMITED_EDITION:
 				result += price * quantity * 1.1;
 				break;
 		}
-
+	
 		return result;
 	}
-	~~~
-	
-	上面我们将`getCharge`中对`type`的直接使用替换为调用新创建的私有成员方法`getType()`。到最后`Shoes`内只有构造函数中仍然直接使用`type`，接下来再处理构造函数。
+    ~~~
+
+    上面我们将`getCharge`中对`type`的直接使用替换为调用新创建的私有成员方法`getType()`。到最后`Shoes`内只有构造函数中仍然直接使用`type`，接下来再处理构造函数。
 	
 2. 为了屏蔽`Shoes`类型被子类化后对客户代码的影响，我们对`Shoes`创建工厂函数作为构造函数的引用锚点，用来对客户屏蔽不同种类`Shoes`的具体构造。首先执行原子步骤setup，创建出工厂函数。
 
@@ -897,44 +897,47 @@ struct Product
 
 `calcPrice`函数的实现显得有点长.我们想使用Extract Method将其分解成几个小函数.一般有注释的地方或者有大的if/for分层次的地方都是提炼函数不错的入手点.但是对于这个函数我们无论是想在第一个if层次内，或者for层次内提炼函数，都遇到不小的挑战，主要是临时变量太多导致函数出入参数过多的问题.
 下面是我们借助eclipse的自动重构工具将for内部提取出一个函数的时候给出的提示:
+
 ![extract-example](./pic/extractExample.jpeg)
+
 可以看到它提示新的函数需要有5个参数之多.
 
 对于这个问题，我们采用上面总结出来的Extract Method的合理顺序来解决.
 1. 将每一个局部变量定义到最靠近其使用的地方，尽量做到定义即初始化;
 
     ~~~cpp
-    bool calcPrice(Product* products，U32 num，double* totalPrice)
-    {
-        if(products != NULL)
-        {
-            for(U32 i = 0; i < num; i++)
-            {
-                double basePrice = products[i].price * products[i].quantity;
-
-                double discountFactor;
-                if(basePrice >= 1000)
-                {
-                    discountFactor = 0.95;
-                }
-                else
-                {
-                    discountFactor = 0.99;
-                }
-
-                basePrice *= discountFactor;
-
-                *totalPrice += basePrice;
-            }
-
-            return true;
-        }
-
-        return false;
-    }
+	bool calcPrice(Product* products，U32 num，double* totalPrice)
+	{
+	if(products != NULL)
+	{
+	    for(U32 i = 0; i < num; i++)
+	    {
+	        double basePrice = products[i].price * products[i].quantity;
+	
+	        double discountFactor;
+	        if(basePrice >= 1000)
+	        {
+	            discountFactor = 0.95;
+	        }
+	        else
+	        {
+	            discountFactor = 0.99;
+	        }
+	
+	        basePrice *= discountFactor;
+	
+	        *totalPrice += basePrice;
+	    }
+	
+	    return true;
+	}
+	
+	return false;
+	}
     ~~~
     
     在上面的操作中，我们将变量`i`，`basePrice`和`dicountFactor`的定义位置都挪到了其第一次使用的地方.对于`i`和`basePrice`做到了定义即初始化.
+    
 2. 对于查询变量有多次赋值的情况，将其拆分成多个查询变量.保证每个查询变量只被赋值一次.
    在这里我们辨识出`totalPrice`和`i`为累计变量，其它都是查询变量.对于查询变量`basePrice`存在多次赋值的情况，这里我们把它拆成两个变量(增加`actualPrice`)，保证每个变量只被赋值一次.对于所有查询变量尽量加上const加以标识.
 
@@ -1161,10 +1164,13 @@ struct Product
 为了提高重构效率，我们需要一款智能的IDE.它需要支持基本的自动化重构，能够高效准确的搜索到代码的引用点，支持良好的面向对象风格代码浏览，高效流畅地快捷键...
 
 本人使用过的一些不错的C++ IDE有:
+
 - Visual studio C++
 自身的重构工具并不完善，但是加上番茄小助手就很不错了.支持自动重命名，自动提取函数，重命名类还会自动把类的头文件和所有的`#include`点的文件名都做一修改.最大的缺点是不能跨平台，而且耗费机器资源较多.最新发布的Visual studio 2015据说已经内置了很多重构功能，不过还没有试过.
+
 - clion
 Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. 目前是收费的，免费的只能试用30天。工程构建只支持CMake，另外只能在64位机器上使用。 Clion内置的自动化重构菜单是最强大(支持rename，inline，extract，Pull member up/down ...)。目前发布了1.0版本，用户还不是特别多，可以持续关注.
+
 - eclipse-cdt
 个人目前使用最多的`C++` IDE. 最大的好处是支持跨平台. 用eclipse在类的继承引用关系之间跳转非常流畅. 支持简单的重命名，提炼函数，提炼常量等自动化重构. 从luna版本开始支持重命名文件或者移动文件的时候会自动替换所有`#include`中的路径名. 个人目前最满意的C++ IDE.
 
@@ -1172,25 +1178,30 @@ Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. �
 
 ### 物理重构
 
-物理设计对`C/C++`程序来说非常重要！ 好的物理设计不仅可以减少物理依赖，还会有利于软件的构建和发布，并且还会方便理解和查找代码元素. 所以`C/C++`程序员除了一般的代码元素级别的重构，还需要经常进行物理级别的重构，包括文件重命名，文件提炼，文件移动，或者目录结构调整等等. 对于`C/C++`来说物理重构比较繁琐的地方在于经常需要同步修改makefile或者头文件的`#include`引用点. 以下是一些和物理重构相关的经验技巧(make相关的见下节):
+物理设计对`C/C++`程序来说非常重要！ 好的物理设计不仅可以减少物理依赖，还会有利于软件的构建和发布，并且还会方便理解和查找代码元素. 所以`C/C++`程序员除了一般的代码元素级别的重构，还需要经常进行物理级别的重构，包括文件重命名，文件提炼，文件移动，或者目录结构调整等等. 对于`C/C++`来说物理重构比较繁琐的地方在于经常需要同步修改makefile或者头文件的`#include`引用点.
+
+以下是一些和物理重构相关的经验技巧(make相关的见下节):
 
 - 每个文件只包含一个类，并且文件名和类名相同. 这样方便重命名类的时候IDE自动对文件进行重命名.
+
 - 利用IDE提供的自动化重命名或者移动菜单进行文件/目录的重命名或者移动，以便IDE可以对涉及文件的所有`#include`引用点进行路径自动替换.
+
 - 使用IDE提供的自动化头文件添加功能来添加物理依赖，例如在eclipse中是`ctrl+shift+n`
+
 - 配置IDE的头文件模板，让自动生成头文件的Include Guard使用Unique Identifier，避免每次头文件重命名后还得要修改Include Guard（见下）. (最新的eclipse mars版本中在Windows -> Preferences -> C/C++ -> Code Style -> Name Style -> Code -> Include Guard 中选择 Unique Identifier，较老版本需要在workspace中修改配置文件，可以自行google修改办法).
-- 
+
     ~~~cpp
 	// Runtime.h
 	#ifndef HDEA41619_5212_4A92_8A09_3989000E6BAE
 	#define HDEA41619_5212_4A92_8A09_3989000E6BAE
-
+	
 	struct Runtime
 	{
 		void run();
 	};
-
+	
 	#endif
-	~~~
+    ~~~
 
 
 ### 编译构建
@@ -1198,6 +1209,7 @@ Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. �
 
 关于编译构建的一些实践经验如下:
 - makefile中尽可能使用模式规则.自动搜索文件.不要显示使用源文件名，否则每次重命名文件后都得要修改makefile.
+
 - makefile中为预编译目标文件设置规则，不仅有利于解决一些宏展开的问题，更重要的可以快速解决一些头文件包含上的编译难题.
 
 	~~~makefile
@@ -1215,8 +1227,11 @@ Jetbrains公司出品的跨平台`C/C++`IDE，号称要做最强大的C++ IDE. �
 	~~~
 	
 - makefile采用自底向上组织，保证每个源代码文件单独可编译，每个模块单独可编译. 最终产品版本的构建调用每个模块的makefile生成编译中间产物后进行链接. 不要采用自顶向下传递make参数的makefile工程管理模式，否则每次编译任何一个文件或者模块都要全编译所有代码.
+
 - 尽可能使用并行编译. 在Visual Studio下可以使用IncrediBuild分布式编译工具. 对于make使用`-j`选项，并且可以使用distcc来进行分布式编译.另外可以使用ccache来做缓存加速编译。
+
 - 将测试工程的编译构建和真实产品版本的构建分离，测试工程的编译构建可以采用更好的工具:例如cmake，rake等.
+
 - 保证增量编译可用，并且是可靠的.
 
 很多项目虽然有增量编译，但是都不够可靠，尤其是当有头文件删除的时候! 另外每次无论是否有依赖变化，makefile都要重新生成加载.d文件，效率也很低下. 所以大多数时候增量编译功能是关闭的!
